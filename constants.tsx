@@ -44,26 +44,26 @@ export const AMENITIES: Amenity[] = [
 ];
 
 // Generate slots from 6 AM to 12 AM (24-hour safe)
-export const TIME_SLOTS: TimeSlot[] = Array.from({ length: 18 }, (_, i) => {
+export const TIME_SLOTS = Array.from({ length: 18 }, (_, i) => {
   const startHour = i + 6; // 6 → 23
-  const endHour = startHour + 1; // 7 → 24
+  const endHour = startHour + 1;
+
+  const format = (h: number) => {
+    if (h === 0) return '12 AM';
+    if (h < 12) return `${h} AM`;
+    if (h === 12) return '12 PM';
+    return `${h - 12} PM`;
+  };
 
   let period: 'Morning' | 'Afternoon' | 'Evening' = 'Morning';
   if (startHour >= 12 && startHour < 17) period = 'Afternoon';
   if (startHour >= 17) period = 'Evening';
 
-  const formatHour = (h: number) => {
-    if (h === 0 || h === 24) return '12 AM';
-    if (h === 12) return '12 PM';
-    return h > 12 ? `${h - 12} PM` : `${h} AM`;
-  };
-
   return {
     id: `slot-${startHour}`,
-    label: `${formatHour(startHour)} - ${formatHour(endHour)}`,
-    startHour,
-    endHour,
-    period
+    label: `${format(startHour)} - ${format(endHour === 24 ? 0 : endHour)}`,
+    hour: startHour,        // 🔥 TRUE 24H VALUE
+    period,
   };
 });
 
