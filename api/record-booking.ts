@@ -12,52 +12,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // Fallback if DB is not connected (Mock Mode)
   if (!db) {
-  return res.status(500).json({ error: 'Database not connected' });
-}
+    return res.status(500).json({ error: 'Database not connected' });
+  }
 
   try {
+    /* ---------------- BLOCK PAST SLOTS (CRITICAL FIX) ---------------- */
+
+    const now = new Date();
+    const [y, m, d] = date.split('-').map(Number);
+
+    for (const slotId of slotIds) {
+      // slot-14 → 14
+      const hour = Number(slotId.replace('slot-', ''));
+      const slotEnd = new Date(y, m - 1, d, hour + 1, 0, 0);
+
+      if (now >= slotEnd) {
+        return res.status(400).json({
+          error: 'Cannot book past time slots',
+        });
+      }
+    }
+
+    /* ---------------- CONFLICT CHECK ---------------- */
+
     const bookingsRef = db.collection('bookings');
-    
-    // Check for conflicts
     const snapshot = await bookingsRef
       .where('date', '==', date)
       .where('status', 'in', ['confirmed', 'pending'])
       .get();
-    
-    const now = Date.now();
-    let isConflict = false;
+
+    const nowMs = Date.now();
     const bookedSlotIds = new Set<string>();
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      // If confirmed, it's a blocker
+
       if (data.status === 'confirmed') {
         data.slotIds.forEach((id: string) => bookedSlotIds.add(id));
-      } 
-      // If pending, check expiration (10 mins)
-      else if (data.status === 'pending') {
-        const isExpired = now - data.createdAt > 10 * 60 * 1000;
+      } else if (data.status === 'pending') {
+        const isExpired = nowMs - data.createdAt > 10 * 60 * 1000;
         if (!isExpired) {
           data.slotIds.forEach((id: string) => bookedSlotIds.add(id));
         }
       }
     });
 
-    // Check if requested slots are taken
     for (const id of slotIds) {
       if (bookedSlotIds.has(id)) {
-        isConflict = true;
-        break;
+        return res
+          .status(409)
+          .json({ error: 'One or more selected slots are already booked.' });
       }
     }
 
-    if (isConflict) {
-      return res.status(409).json({ error: 'One or more selected slots are already booked.' });
-    }
+    /* ---------------- CREATE BOOKING ---------------- */
 
-    // Create Booking
     const newBooking = {
       turfId: 'main-turf',
       date,
@@ -66,8 +76,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       amount,
       customerName: name,
       customerPhone: phone,
-      createdAt: now,
-      paymentMethod: 'link_manual'
+      createdAt: nowMs,
+      paymentMethod: 'link_manual',
     };
 
     await bookingsRef.add(newBooking);
