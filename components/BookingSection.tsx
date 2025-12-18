@@ -13,7 +13,7 @@ const BookingSection: React.FC = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 🔥 Force re-render with real time
+  /* ---------- FORCE REAL-TIME RE-RENDER ---------- */
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -23,33 +23,20 @@ const BookingSection: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  /* ---------------- REAL-TIME SLOT CHECK (1 HOUR) ---------------- */
+  /* ---------- SLOT TIME CHECK (FINAL LOGIC) ---------- */
+  const isPastSlot = (startHour: number) => {
+    const nowLocal = new Date();
 
- const isPastSlot = (startHour: number) => {
-  const nowLocal = new Date();
+    // build selected date in LOCAL time
+    const [y, m, d] = selectedDate.split('-').map(Number);
 
-  // build selected date in local time
-  const [y, m, d] = selectedDate.split('-').map(Number);
+    // slot end = start hour + 1 hour
+    const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
 
-  const slotStart = new Date(y, m - 1, d, startHour, 0, 0);
-  const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
-
-  return nowLocal >= slotEnd;
-};
-
-
-    // yesterday → closed
-    if (selectedLocal < todayLocal) return true;
-
-    // tomorrow → open
-    if (selectedLocal > todayLocal) return false;
-
-    // same day → close if current hour >= slot end
-    return nowLocal.getHours() >= startHour + 1;
+    return nowLocal >= slotEnd;
   };
 
-  /* ---------------- FETCH SLOTS FROM BACKEND ---------------- */
-
+  /* ---------- FETCH BOOKED SLOTS ---------- */
   const fetchSlots = async () => {
     setLoadingSlots(true);
     try {
@@ -65,12 +52,11 @@ const BookingSection: React.FC = () => {
 
   useEffect(() => {
     fetchSlots();
-    const interval = setInterval(fetchSlots, 10000); // DB sync
+    const interval = setInterval(fetchSlots, 10000); // sync every 10 sec
     return () => clearInterval(interval);
   }, [selectedDate]);
 
-  /* ---------------- PRICING ---------------- */
-
+  /* ---------- PRICING ---------- */
   const isWeekend = useMemo(() => {
     const d = new Date(selectedDate + 'T00:00:00');
     return d.getDay() === 0 || d.getDay() === 6;
@@ -79,8 +65,7 @@ const BookingSection: React.FC = () => {
   const hourlyRate = isWeekend ? PRICING.WEEKEND : PRICING.WEEKDAY;
   const totalAmount = selectedSlots.length * hourlyRate;
 
-  /* ---------------- SLOT TOGGLE ---------------- */
-
+  /* ---------- SLOT TOGGLE ---------- */
   const toggleSlot = (id: string) => {
     if (bookedSlots.includes(id)) return;
 
@@ -89,8 +74,7 @@ const BookingSection: React.FC = () => {
     );
   };
 
-  /* ---------------- BOOK ---------------- */
-
+  /* ---------- BOOK ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || selectedSlots.length === 0) return;
@@ -138,16 +122,14 @@ Amount: ₹${totalAmount}`;
     }
   };
 
-  /* ---------------- GROUP SLOTS ---------------- */
-
+  /* ---------- GROUP SLOTS ---------- */
   const groupedSlots = {
     Morning: TIME_SLOTS.filter(s => s.period === 'Morning'),
     Afternoon: TIME_SLOTS.filter(s => s.period === 'Afternoon'),
     Evening: TIME_SLOTS.filter(s => s.period === 'Evening'),
   };
 
-  /* ---------------- UI ---------------- */
-
+  /* ---------- UI ---------- */
   return (
     <section id="book" className="py-20 bg-slate-900">
       <div className="max-w-4xl mx-auto px-4">
@@ -184,12 +166,6 @@ Amount: ₹${totalAmount}`;
                   <h4 className="text-xs uppercase text-gray-500 mb-2">{period}</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map(slot => {
-                  console.log(
-    'NOW:', new Date().getHours(),
-    'SLOT:', slot.hour,
-    'PAST?:', isPastSlot(slot.hour)
-  );
-
                       const closed =
                         bookedSlots.includes(slot.id) ||
                         isPastSlot(slot.hour);
@@ -210,7 +186,9 @@ Amount: ₹${totalAmount}`;
                               : 'bg-slate-800 text-gray-300 hover:border-lime-400'
                             }`}
                         >
-                          {closed && <Lock className="w-3 h-3 absolute top-1 right-1" />}
+                          {closed && (
+                            <Lock className="w-3 h-3 absolute top-1 right-1" />
+                          )}
                           {selected && (
                             <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
                           )}
