@@ -13,31 +13,39 @@ const BookingSection: React.FC = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 🔥 CURRENT TIME STATE (forces re-render)
+  // 🔥 Force re-render with real time
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(new Date());
     }, 60000); // every 1 minute
-
     return () => clearInterval(timer);
   }, []);
 
-  /* ---------------- REAL-TIME SLOT CHECK (1 HOUR LOGIC) ---------------- */
+  /* ---------------- REAL-TIME SLOT CHECK (1 HOUR) ---------------- */
 
   const isPastSlot = (startHour: number) => {
-    const todayDate = new Date(new Date().toDateString());
-    const selected = new Date(selectedDate);
+    const nowLocal = now;
 
-    // past date → all closed
-    if (selected < todayDate) return true;
+    // build selected date in LOCAL time (IMPORTANT)
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const selectedLocal = new Date(y, m - 1, d);
 
-    // future date → all open
-    if (selected > todayDate) return false;
+    const todayLocal = new Date(
+      nowLocal.getFullYear(),
+      nowLocal.getMonth(),
+      nowLocal.getDate()
+    );
+
+    // yesterday → closed
+    if (selectedLocal < todayLocal) return true;
+
+    // tomorrow → open
+    if (selectedLocal > todayLocal) return false;
 
     // same day → close if current hour >= slot end
-    return now.getHours() >= startHour + 1;
+    return nowLocal.getHours() >= startHour + 1;
   };
 
   /* ---------------- FETCH SLOTS FROM BACKEND ---------------- */
@@ -57,14 +65,14 @@ const BookingSection: React.FC = () => {
 
   useEffect(() => {
     fetchSlots();
-    const interval = setInterval(fetchSlots, 10000); // sync with DB
+    const interval = setInterval(fetchSlots, 10000); // DB sync
     return () => clearInterval(interval);
   }, [selectedDate]);
 
   /* ---------------- PRICING ---------------- */
 
   const isWeekend = useMemo(() => {
-    const d = new Date(selectedDate);
+    const d = new Date(selectedDate + 'T00:00:00');
     return d.getDay() === 0 || d.getDay() === 6;
   }, [selectedDate]);
 
@@ -123,7 +131,7 @@ Amount: ₹${totalAmount}`;
 
       setSelectedSlots([]);
       setName('');
-    } catch (err) {
+    } catch {
       alert('Booking failed. Try again.');
     } finally {
       setSubmitting(false);
@@ -176,28 +184,28 @@ Amount: ₹${totalAmount}`;
                   <h4 className="text-xs uppercase text-gray-500 mb-2">{period}</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map(slot => {
-                      const isBooked =
-                        bookedSlots.includes(slot.id) || isPastSlot(slot.hour);
-                      const isSelected = selectedSlots.includes(slot.id);
+                      const closed =
+                        bookedSlots.includes(slot.id) ||
+                        isPastSlot(slot.hour);
+
+                      const selected = selectedSlots.includes(slot.id);
 
                       return (
                         <button
                           key={slot.id}
                           type="button"
-                          disabled={isBooked}
+                          disabled={closed}
                           onClick={() => toggleSlot(slot.id)}
                           className={`relative py-2 px-3 text-sm rounded-lg border
-                            ${isBooked
+                            ${closed
                               ? 'bg-slate-800 text-gray-600 cursor-not-allowed'
-                              : isSelected
+                              : selected
                               ? 'bg-lime-400 text-black font-bold'
                               : 'bg-slate-800 text-gray-300 hover:border-lime-400'
                             }`}
                         >
-                          {isBooked && (
-                            <Lock className="w-3 h-3 absolute top-1 right-1" />
-                          )}
-                          {isSelected && (
+                          {closed && <Lock className="w-3 h-3 absolute top-1 right-1" />}
+                          {selected && (
                             <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
                           )}
                           {isPastSlot(slot.hour) ? 'Closed' : slot.label}
