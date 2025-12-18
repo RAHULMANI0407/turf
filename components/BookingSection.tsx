@@ -25,18 +25,18 @@ const BookingSection: React.FC = () => {
 
   /* ---------------- REAL-TIME SLOT CHECK (1 HOUR) ---------------- */
 
-  const isPastSlot = (startHour: number) => {
-    const nowLocal = now;
+ const isPastSlot = (startHour: number) => {
+  const nowLocal = new Date();
 
-    // build selected date in LOCAL time (IMPORTANT)
-    const [y, m, d] = selectedDate.split('-').map(Number);
-    const selectedLocal = new Date(y, m - 1, d);
+  // build selected date in local time
+  const [y, m, d] = selectedDate.split('-').map(Number);
 
-    const todayLocal = new Date(
-      nowLocal.getFullYear(),
-      nowLocal.getMonth(),
-      nowLocal.getDate()
-    );
+  const slotStart = new Date(y, m - 1, d, startHour, 0, 0);
+  const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
+
+  return nowLocal >= slotEnd;
+};
+
 
     // yesterday → closed
     if (selectedLocal < todayLocal) return true;
