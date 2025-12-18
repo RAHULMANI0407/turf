@@ -184,6 +184,12 @@ Amount: ₹${totalAmount}`;
                   <h4 className="text-xs uppercase text-gray-500 mb-2">{period}</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map(slot => {
+                  console.log(
+    'NOW:', new Date().getHours(),
+    'SLOT:', slot.hour,
+    'PAST?:', isPastSlot(slot.hour)
+  );
+
                       const closed =
                         bookedSlots.includes(slot.id) ||
                         isPastSlot(slot.hour);
