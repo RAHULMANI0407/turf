@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Razorpay from 'razorpay';
-import { db } from './lib/firebase';
+import { db } from './lib/firebase.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const razorpay = new Razorpay({
