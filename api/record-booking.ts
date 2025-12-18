@@ -14,11 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Fallback if DB is not connected (Mock Mode)
   if (!db) {
-    console.log(`[MOCK] Recording booking for ${name} on ${date}. Slots: ${slotIds.join(',')}`);
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return res.status(200).json({ success: true, mock: true });
-  }
+  return res.status(500).json({ error: 'Database not connected' });
+}
 
   try {
     const bookingsRef = db.collection('bookings');
