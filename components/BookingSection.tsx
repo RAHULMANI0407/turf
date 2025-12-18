@@ -166,7 +166,7 @@ Amount: ₹${totalAmount}`;
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map(slot => {
                       const isBooked =
-                        bookedSlots.includes(slot.id) || isPastSlot(slot.hour);
+                        bookedSlots.includes(slot.id) || isPastSlot(slot.endHour)
                       const isSelected = selectedSlots.includes(slot.id);
 
                       return (
