@@ -13,21 +13,31 @@ const BookingSection: React.FC = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  /* ---------------- REAL-TIME SLOT CHECK ---------------- */
+  // 🔥 CURRENT TIME STATE (forces re-render)
+  const [now, setNow] = useState(new Date());
 
-  const isPastSlot = (slotHour: number) => {
-    const now = new Date();
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 60000); // every 1 minute
+
+    return () => clearInterval(timer);
+  }, []);
+
+  /* ---------------- REAL-TIME SLOT CHECK (1 HOUR LOGIC) ---------------- */
+
+  const isPastSlot = (startHour: number) => {
     const todayDate = new Date(new Date().toDateString());
     const selected = new Date(selectedDate);
 
-    // Previous dates → all slots closed
+    // past date → all closed
     if (selected < todayDate) return true;
 
-    // Future dates → all slots open
+    // future date → all open
     if (selected > todayDate) return false;
 
-    // Same day → past hours closed
-    return now.getHours() >= slotHour;
+    // same day → close if current hour >= slot end
+    return now.getHours() >= startHour + 1;
   };
 
   /* ---------------- FETCH SLOTS FROM BACKEND ---------------- */
@@ -47,7 +57,7 @@ const BookingSection: React.FC = () => {
 
   useEffect(() => {
     fetchSlots();
-    const interval = setInterval(fetchSlots, 10000); // auto sync
+    const interval = setInterval(fetchSlots, 10000); // sync with DB
     return () => clearInterval(interval);
   }, [selectedDate]);
 
@@ -65,6 +75,7 @@ const BookingSection: React.FC = () => {
 
   const toggleSlot = (id: string) => {
     if (bookedSlots.includes(id)) return;
+
     setSelectedSlots(prev =>
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     );
@@ -166,7 +177,7 @@ Amount: ₹${totalAmount}`;
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map(slot => {
                       const isBooked =
-                        bookedSlots.includes(slot.id) || isPastSlot(slot.endHour)
+                        bookedSlots.includes(slot.id) || isPastSlot(slot.hour);
                       const isSelected = selectedSlots.includes(slot.id);
 
                       return (
@@ -189,7 +200,7 @@ Amount: ₹${totalAmount}`;
                           {isSelected && (
                             <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
                           )}
-                          {isPastSlot(slot.endHour) ? 'Closed' : slot.label}
+                          {isPastSlot(slot.hour) ? 'Closed' : slot.label}
                         </button>
                       );
                     })}
