@@ -189,7 +189,7 @@ Amount: ₹${totalAmount}`;
                           {isSelected && (
                             <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
                           )}
-                          {isPastSlot(slot.hour) ? 'Closed' : slot.label}
+                          {isPastSlot(slot.endHour) ? 'Closed' : slot.label}
                         </button>
                       );
                     })}
