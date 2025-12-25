@@ -68,7 +68,10 @@ const BookingSection: React.FC = () => {
   /* ---------- PAY & BOOK ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || selectedSlots.length === 0) return;
+    if (!name || !phone || phone.length !== 10 || selectedSlots.length === 0) {
+  alert('Enter your name and a valid 10-digit mobile number');
+  return;
+}
 
     setSubmitting(true);
 
@@ -78,11 +81,13 @@ const BookingSection: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          date: selectedDate,
-          slotIds: selectedSlots,
-          amount: totalAmount,
-        }),
+  name,
+  phone,
+  date: selectedDate,
+  slotIds: selectedSlots,
+  amount: totalAmount,
+}),
+
       });
 
       const order = await res.json();
