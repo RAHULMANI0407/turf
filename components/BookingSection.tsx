@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TIME_SLOTS, PRICING, CONTACT_PHONE } from '../constants';
+import { TIME_SLOTS, PRICING } from '../constants';
 import Button from './Button';
-import { Calendar, CheckCircle, MessageCircle, Lock, Loader2 } from 'lucide-react';
+import { Calendar, CheckCircle, Lock, Loader2 } from 'lucide-react';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 const BookingSection: React.FC = () => {
   const today = new Date().toISOString().split('T')[0];
@@ -13,38 +19,23 @@ const BookingSection: React.FC = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  /* ---------- FORCE REAL-TIME RE-RENDER ---------- */
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 60000); // every 1 minute
-    return () => clearInterval(timer);
-  }, []);
-
-  /* ---------- SLOT TIME CHECK (FINAL LOGIC) ---------- */
+  /* ---------- TIME CHECK ---------- */
   const isPastSlot = (startHour: number) => {
-    const nowLocal = new Date();
-
-    // build selected date in LOCAL time
+    const now = new Date();
     const [y, m, d] = selectedDate.split('-').map(Number);
-
-    // slot end = start hour + 1 hour
     const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
-
-    return nowLocal >= slotEnd;
+    return now >= slotEnd;
   };
 
-  /* ---------- FETCH BOOKED SLOTS ---------- */
+  /* ---------- FETCH SLOTS ---------- */
   const fetchSlots = async () => {
     setLoadingSlots(true);
     try {
       const res = await fetch(`/api/get-slots?date=${selectedDate}`);
       const data = await res.json();
       setBookedSlots(data.bookedSlots || []);
-    } catch (err) {
-      console.error('Failed to fetch slots', err);
+    } catch {
+      console.error('Failed to fetch slots');
     } finally {
       setLoadingSlots(false);
     }
@@ -52,7 +43,7 @@ const BookingSection: React.FC = () => {
 
   useEffect(() => {
     fetchSlots();
-    const interval = setInterval(fetchSlots, 10000); // sync every 10 sec
+    const interval = setInterval(fetchSlots, 10000);
     return () => clearInterval(interval);
   }, [selectedDate]);
 
@@ -68,13 +59,12 @@ const BookingSection: React.FC = () => {
   /* ---------- SLOT TOGGLE ---------- */
   const toggleSlot = (id: string) => {
     if (bookedSlots.includes(id)) return;
-
     setSelectedSlots(prev =>
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     );
   };
 
-  /* ---------- BOOK ---------- */
+  /* ---------- PAY & BOOK ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || selectedSlots.length === 0) return;
@@ -82,41 +72,50 @@ const BookingSection: React.FC = () => {
     setSubmitting(true);
 
     try {
-      await fetch('/api/record-booking', {
+      // Create order + lock slot
+      const res = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          phone: CONTACT_PHONE,
           date: selectedDate,
           slotIds: selectedSlots,
           amount: totalAmount,
         }),
       });
 
-      await fetchSlots();
+      const order = await res.json();
 
-      const slotsText = TIME_SLOTS
-        .filter(s => selectedSlots.includes(s.id))
-        .map(s => s.label)
-        .join(', ');
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: 'INR',
+        name: 'Turf Booking',
+        description: 'Slot Booking',
+        order_id: order.id,
+        handler: async (response: any) => {
+          await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...response,
+              bookingId: order.bookingId,
+            }),
+          });
 
-      const message = `Hi, I want to book the turf.
+          alert('Booking confirmed 🎉');
+          setSelectedSlots([]);
+          setName('');
+          fetchSlots();
+        },
+        prefill: { name },
+        theme: { color: '#84cc16' },
+      };
 
-Name: ${name}
-Date: ${selectedDate}
-Slots: ${slotsText}
-Amount: ₹${totalAmount}`;
-
-      window.open(
-        `https://wa.me/${CONTACT_PHONE}?text=${encodeURIComponent(message)}`,
-        '_blank'
-      );
-
-      setSelectedSlots([]);
-      setName('');
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch {
-      alert('Booking failed. Try again.');
+      alert('Payment failed. Try again.');
     } finally {
       setSubmitting(false);
     }
@@ -225,8 +224,8 @@ Amount: ₹${totalAmount}`;
               >
                 {submitting
                   ? <Loader2 className="animate-spin w-5 h-5 mr-2" />
-                  : <MessageCircle className="w-5 h-5 mr-2" />}
-                Book via WhatsApp
+                  : <Lock className="w-5 h-5 mr-2" />}
+                Pay & Book Slot
               </Button>
             </div>
 
