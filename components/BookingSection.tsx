@@ -16,6 +16,7 @@ const BookingSection: React.FC = () => {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
