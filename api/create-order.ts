@@ -8,77 +8,85 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || '',
 });
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { name, phone, date, slotIds, amount } = req.body;
+  const { name, date, slotIds, amount } = req.body;
 
-  if (!name || !date || !slotIds || slotIds.length === 0) {
+  if (!name || !date || !Array.isArray(slotIds) || slotIds.length === 0 || !amount) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // Safety check: If DB is not connected, fail gracefully
   if (!db) {
-    return res.status(503).json({ error: 'Service unavailable: Database not connected.' });
+    return res.status(503).json({ error: 'Database not connected' });
   }
 
   try {
-    // 1. Double Booking Check (Server Side)
-    // Fetch all active bookings for this date
+    /* ---------- DOUBLE BOOKING CHECK ---------- */
     const bookingsRef = db.collection('bookings');
     const snapshot = await bookingsRef
       .where('date', '==', date)
-      .where('status', 'in', ['confirmed', 'pending'])
+      .where('status', 'in', ['pending', 'confirmed'])
       .get();
 
-    let isConflict = false;
     const now = Date.now();
+    let conflict = false;
 
-    snapshot.forEach((doc) => {
+    snapshot.forEach(doc => {
       const data = doc.data();
-      // Check expiration for pending slots
-      if (data.status === 'pending') {
-        const isExpired = now - data.createdAt > 10 * 60 * 1000;
-        if (isExpired) return; // Skip expired pending bookings
+
+      // ignore expired pending locks (10 mins)
+      if (
+        data.status === 'pending' &&
+        now - data.createdAt > 10 * 60 * 1000
+      ) {
+        return;
       }
-      
-      // Check intersection
-      const hasOverlap = data.slotIds.some((id: string) => slotIds.includes(id));
-      if (hasOverlap) isConflict = true;
+
+      const overlap = data.slotIds.some((id: string) =>
+        slotIds.includes(id)
+      );
+      if (overlap) conflict = true;
     });
 
-    if (isConflict) {
-      return res.status(409).json({ error: 'One or more slots have just been booked. Please try again.' });
+    if (conflict) {
+      return res
+        .status(409)
+        .json({ error: 'Slot already booked. Try another.' });
     }
 
-    // 2. Create Razorpay Order
-    const options = {
-      amount: amount * 100, // Razorpay expects amount in paisa
+    /* ---------- CREATE RAZORPAY ORDER ---------- */
+    const order = await razorpay.orders.create({
+      amount: amount * 100, // paisa
       currency: 'INR',
       receipt: uuidv4(),
-      payment_capture: 1, // Auto capture
-    };
+      payment_capture: 1,
+    });
 
-    const order = await razorpay.orders.create(options);
-
-    // 3. Lock Slots (Create Pending Booking)
+    /* ---------- LOCK SLOT (PENDING) ---------- */
     await db.collection('bookings').add({
       turfId: 'main-turf',
+      customerName: name,
       date,
       slotIds,
-      status: 'pending',
       amount,
-      customerName: name,
-      customerPhone: phone,
+      status: 'pending',
       orderId: order.id,
       createdAt: now,
     });
 
-    return res.status(200).json({ orderId: order.id, keyId: process.env.RAZORPAY_KEY_ID });
-  } catch (error) {
-    console.error('Error creating order:', error);
+    /* ---------- RESPONSE (MATCH FRONTEND) ---------- */
+    return res.status(200).json({
+      id: order.id,
+      amount: order.amount,
+    });
+  } catch (err) {
+    console.error('Create order error:', err);
     return res.status(500).json({ error: 'Failed to create order' });
   }
 }
