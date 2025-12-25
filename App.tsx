@@ -8,6 +8,7 @@ import Gallery from './components/Gallery';
 import Contact from './components/Contact';
 import AdminView from './components/AdminView';
 import MyBookings from './components/MyBookings';
+import AdminLogin from './components/AdminLogin';
 
 const App: React.FC = () => {
   // Simple hash routing
@@ -22,9 +23,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  if (route === '#admin') {
-    return <AdminView />;
-  }
+  if (route === '#admin-login') {
+  return <AdminLogin />;
+}
+
+if (route === '#admin') {
+  return <AdminView />;
+}
   
   if (route === '#my-bookings') {
     return (
