@@ -87,7 +87,7 @@ const BookingSection: React.FC = () => {
       const order = await res.json();
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: 'INR',
         name: 'Turf Booking',
