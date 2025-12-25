@@ -211,6 +211,19 @@ const BookingSection: React.FC = () => {
                 className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
               />
             </div>
+            {/* MOBILE NUMBER */}
+<div>
+  <label className="text-sm text-gray-300">Mobile Number</label>
+  <input
+    type="tel"
+    value={phone}
+    onChange={e => setPhone(e.target.value)}
+    placeholder="10-digit mobile number"
+    required
+    className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
+  />
+</div>
+
 
             {/* SUMMARY */}
             <div className="flex justify-between items-center bg-slate-800 p-5 rounded-xl">
