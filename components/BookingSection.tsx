@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { TIME_SLOTS, PRICING } from '../constants';
-import Button from './Button';
-import { Calendar, CheckCircle, Lock, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from "react";
+import { TIME_SLOTS, PRICING, CONTACT_PHONE } from "../constants";
+import Button from "./Button";
+import { Calendar, CheckCircle, Lock, Loader2 } from "lucide-react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../firebase";
 
 declare global {
   interface Window {
@@ -10,47 +12,45 @@ declare global {
 }
 
 const BookingSection: React.FC = () => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   /* ---------- TIME CHECK ---------- */
   const isPastSlot = (startHour: number) => {
     const now = new Date();
-    const [y, m, d] = selectedDate.split('-').map(Number);
+    const [y, m, d] = selectedDate.split("-").map(Number);
     const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
     return now >= slotEnd;
   };
 
-  /* ---------- FETCH SLOTS ---------- */
-  const fetchSlots = async () => {
-    setLoadingSlots(true);
-    try {
-      const res = await fetch(`/api/get-slots?date=${selectedDate}`);
-      const data = await res.json();
-      setBookedSlots(data.bookedSlots || []);
-    } catch {
-      console.error('Failed to fetch slots');
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
-
+  /* ---------- LOAD BOOKED SLOTS (GLOBAL) ---------- */
   useEffect(() => {
-    fetchSlots();
-    const interval = setInterval(fetchSlots, 10000);
-    return () => clearInterval(interval);
+    const loadSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const ref = doc(db, "bookings", selectedDate);
+        const snap = await getDoc(ref);
+        setBookedSlots(snap.exists() ? snap.data().slots || [] : []);
+      } catch (err) {
+        console.error("Failed to load slots", err);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    loadSlots();
   }, [selectedDate]);
 
   /* ---------- PRICING ---------- */
   const isWeekend = useMemo(() => {
-    const d = new Date(selectedDate + 'T00:00:00');
+    const d = new Date(selectedDate + "T00:00:00");
     return d.getDay() === 0 || d.getDay() === 6;
   }, [selectedDate]);
 
@@ -60,68 +60,61 @@ const BookingSection: React.FC = () => {
   /* ---------- SLOT TOGGLE ---------- */
   const toggleSlot = (id: string) => {
     if (bookedSlots.includes(id)) return;
-    setSelectedSlots(prev =>
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    setSelectedSlots((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
   };
 
   /* ---------- PAY & BOOK ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || phone.length !== 10 || selectedSlots.length === 0) {
-  alert('Enter your name and a valid 10-digit mobile number');
-  return;
-}
+
+    if (!name || phone.length !== 10 || selectedSlots.length === 0) {
+      alert("Enter name, valid phone number, and select slots");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      // Create order + lock slot
-      const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-  name,
-  phone,
-  date: selectedDate,
-  slotIds: selectedSlots,
-  amount: totalAmount,
-}),
+      // 🔥 SAVE SLOT DIRECTLY TO FIREBASE
+      const ref = doc(db, "bookings", selectedDate);
+      const snap = await getDoc(ref);
 
-      });
+      const existingSlots = snap.exists() ? snap.data().slots || [] : [];
+      const updatedSlots = [...new Set([...existingSlots, ...selectedSlots])];
 
-      const order = await res.json();
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: 'INR',
-        name: 'Turf Booking',
-        description: 'Slot Booking',
-        order_id: order.id,
-        handler: async (response: any) => {
-          await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...response,
-              bookingId: order.bookingId,
-            }),
-          });
-
-          alert('Booking confirmed 🎉');
-          setSelectedSlots([]);
-          setName('');
-          fetchSlots();
+      await setDoc(
+        ref,
+        {
+          slots: updatedSlots,
+          name,
+          phone,
+          updatedAt: Date.now(),
         },
-        prefill: { name },
-        theme: { color: '#84cc16' },
-      };
+        { merge: true }
+      );
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch {
-      alert('Payment failed. Try again.');
+      // ✅ UPDATE UI
+      setBookedSlots(updatedSlots);
+      setSelectedSlots([]);
+      setName("");
+      setPhone("");
+
+      // ✅ OPEN WHATSAPP
+      const timeRange = TIME_SLOTS.filter((s) =>
+        updatedSlots.includes(s.id)
+      )
+        .map((s) => s.label)
+        .join(", ");
+
+      const message = `Hi, I want to book the turf.%0A%0AName: *${name}*%0ADate: *${selectedDate}*%0ATime: *${timeRange}*%0ATotal: *₹${totalAmount}*`;
+      window.open(`https://wa.me/${CONTACT_PHONE}?text=${message}`, "_blank");
+
+      alert("Booking confirmed 🎉");
+    } catch (err) {
+      console.error(err);
+      alert("Booking failed. Try again.");
     } finally {
       setSubmitting(false);
     }
@@ -129,9 +122,9 @@ const BookingSection: React.FC = () => {
 
   /* ---------- GROUP SLOTS ---------- */
   const groupedSlots = {
-    Morning: TIME_SLOTS.filter(s => s.period === 'Morning'),
-    Afternoon: TIME_SLOTS.filter(s => s.period === 'Afternoon'),
-    Evening: TIME_SLOTS.filter(s => s.period === 'Evening'),
+    Morning: TIME_SLOTS.filter((s) => s.period === "Morning"),
+    Afternoon: TIME_SLOTS.filter((s) => s.period === "Afternoon"),
+    Evening: TIME_SLOTS.filter((s) => s.period === "Evening"),
   };
 
   /* ---------- UI ---------- */
@@ -139,13 +132,11 @@ const BookingSection: React.FC = () => {
     <section id="book" className="py-20 bg-slate-900">
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-10">
-
           <h2 className="text-3xl font-bold text-center text-white mb-8">
             Book Your Slot
           </h2>
 
           <form onSubmit={handleBook} className="space-y-8">
-
             {/* DATE */}
             <div>
               <label className="text-sm text-gray-300">Select Date</label>
@@ -155,7 +146,7 @@ const BookingSection: React.FC = () => {
                   type="date"
                   min={today}
                   value={selectedDate}
-                  onChange={e => {
+                  onChange={(e) => {
                     setSelectedDate(e.target.value);
                     setSelectedSlots([]);
                   }}
@@ -165,12 +156,14 @@ const BookingSection: React.FC = () => {
             </div>
 
             {/* SLOTS */}
-            <div className={loadingSlots ? 'opacity-60 pointer-events-none' : ''}>
+            <div className={loadingSlots ? "opacity-60 pointer-events-none" : ""}>
               {Object.entries(groupedSlots).map(([period, slots]) => (
                 <div key={period} className="mb-6">
-                  <h4 className="text-xs uppercase text-gray-500 mb-2">{period}</h4>
+                  <h4 className="text-xs uppercase text-gray-500 mb-2">
+                    {period}
+                  </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {slots.map(slot => {
+                    {slots.map((slot) => {
                       const closed =
                         bookedSlots.includes(slot.id) ||
                         isPastSlot(slot.hour);
@@ -184,11 +177,12 @@ const BookingSection: React.FC = () => {
                           disabled={closed}
                           onClick={() => toggleSlot(slot.id)}
                           className={`relative py-2 px-3 text-sm rounded-lg border
-                            ${closed
-                              ? 'bg-slate-800 text-gray-600 cursor-not-allowed'
-                              : selected
-                              ? 'bg-lime-400 text-black font-bold'
-                              : 'bg-slate-800 text-gray-300 hover:border-lime-400'
+                            ${
+                              closed
+                                ? "bg-slate-800 text-gray-600 cursor-not-allowed"
+                                : selected
+                                ? "bg-lime-400 text-black font-bold"
+                                : "bg-slate-800 text-gray-300 hover:border-lime-400"
                             }`}
                         >
                           {closed && (
@@ -197,7 +191,7 @@ const BookingSection: React.FC = () => {
                           {selected && (
                             <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
                           )}
-                          {isPastSlot(slot.hour) ? 'Closed' : slot.label}
+                          {isPastSlot(slot.hour) ? "Closed" : slot.label}
                         </button>
                       );
                     })}
@@ -211,24 +205,24 @@ const BookingSection: React.FC = () => {
               <label className="text-sm text-gray-300">Your Name</label>
               <input
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 required
                 className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
               />
             </div>
-            {/* MOBILE NUMBER */}
-<div>
-  <label className="text-sm text-gray-300">Mobile Number</label>
-  <input
-    type="tel"
-    value={phone}
-    onChange={e => setPhone(e.target.value)}
-    placeholder="10-digit mobile number"
-    required
-    className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
-  />
-</div>
 
+            {/* PHONE */}
+            <div>
+              <label className="text-sm text-gray-300">Mobile Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="10-digit mobile number"
+                required
+                className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
+              />
+            </div>
 
             {/* SUMMARY */}
             <div className="flex justify-between items-center bg-slate-800 p-5 rounded-xl">
@@ -241,13 +235,14 @@ const BookingSection: React.FC = () => {
                 type="submit"
                 disabled={selectedSlots.length === 0 || submitting}
               >
-                {submitting
-                  ? <Loader2 className="animate-spin w-5 h-5 mr-2" />
-                  : <Lock className="w-5 h-5 mr-2" />}
-                Pay & Book Slot
+                {submitting ? (
+                  <Loader2 className="animate-spin w-5 h-5 mr-2" />
+                ) : (
+                  <Lock className="w-5 h-5 mr-2" />
+                )}
+                Book Slot
               </Button>
             </div>
-
           </form>
         </div>
       </div>
