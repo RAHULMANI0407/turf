@@ -8,14 +8,14 @@ export default async function handler(req, res) {
   try {
     const { date, slots } = req.body;
 
-    if (!date || !slots) {
+    if (!date || !Array.isArray(slots)) {
       return res.status(400).json({ success: false });
     }
 
     const ref = db.collection("slots").doc(date);
     const snap = await ref.get();
 
-    const existing = snap.exists ? snap.data().slots : [];
+    const existing = snap.exists ? snap.data().slots || [] : [];
     const updated = Array.from(new Set([...existing, ...slots]));
 
     await ref.set({ slots: updated });
