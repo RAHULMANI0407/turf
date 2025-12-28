@@ -1,51 +1,32 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from './lib/firebase';
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { db } from "./lib/firebase";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { date } = req.query;
-
-  if (!date || typeof date !== 'string') {
-    return res.status(400).json({ error: 'Date is required' });
-  }
-
-  // Fallback if DB is not connected
-  if (!db) {
-    return res.status(200).json({ bookedSlots: [] });
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const bookingsRef = db.collection('bookings');
-    const snapshot = await bookingsRef
-      .where('date', '==', date)
-      .where('status', 'in', ['confirmed', 'pending'])
-      .get();
+    const { date } = req.query;
 
-    const bookedSlots: string[] = [];
-    const now = Date.now();
+    if (!date || typeof date !== "string") {
+      return res.status(400).json({ error: "Date is required" });
+    }
 
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      
-      if (data.status === 'confirmed') {
-        bookedSlots.push(...data.slotIds);
-      } else if (data.status === 'pending') {
-        const isExpired = now - data.createdAt > 10 * 60 * 1000; // 10 minutes
-        if (!isExpired) {
-          bookedSlots.push(...data.slotIds);
-        }
-      }
-    });
+    const docRef = db.collection("bookings").doc(date);
+    const snap = await docRef.get();
 
-    // Remove duplicates
-    const uniqueBookedSlots = [...new Set(bookedSlots)];
+    if (!snap.exists) {
+      return res.status(200).json([]);
+    }
 
-    return res.status(200).json({ bookedSlots: uniqueBookedSlots });
+    const data = snap.data();
+    return res.status(200).json(data?.slots || []);
   } catch (error) {
-    console.error('Error fetching slots:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error("GET SLOTS ERROR:", error);
+    return res.status(500).json({ error: "Failed to fetch slots" });
   }
 }
