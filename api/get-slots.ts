@@ -17,16 +17,16 @@ export default async function handler(
     }
 
     const docRef = db.collection("bookings").doc(date);
-    const snap = await docRef.get();
+    const snapshot = await docRef.get();
 
-    if (!snap.exists) {
+    if (!snapshot.exists) {
       return res.status(200).json([]);
     }
 
-    const data = snap.data();
+    const data = snapshot.data();
     return res.status(200).json(data?.slots || []);
-  } catch (error) {
-    console.error("GET SLOTS ERROR:", error);
+  } catch (err) {
+    console.error("❌ get-slots error:", err);
     return res.status(500).json({ error: "Failed to fetch slots" });
   }
 }
