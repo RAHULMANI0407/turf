@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
-import { db } from "./lib/firebase"; // adjust path if needed
+import { db } from "./lib/firebase.js"; // adjust path if needed
 
 export default async function handler(
   req: VercelRequest,
