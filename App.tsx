@@ -6,12 +6,9 @@ import BookingSection from './components/BookingSection';
 import Pricing from './components/Pricing';
 import Gallery from './components/Gallery';
 import Contact from './components/Contact';
-import AdminView from './components/AdminView';
 import MyBookings from './components/MyBookings';
-import AdminLogin from './components/AdminLogin';
 
 const App: React.FC = () => {
-  // Simple hash routing
   const [route, setRoute] = useState('');
 
   useEffect(() => {
@@ -19,27 +16,21 @@ const App: React.FC = () => {
       setRoute(window.location.hash);
     };
     window.addEventListener('hashchange', handleHashChange);
-    handleHashChange(); // Set initial route
+    handleHashChange();
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  if (route === '#admin-login') {
-  return <AdminLogin />;
-}
-
-if (route === '#admin') {
-  return <AdminView />;
-}
-  
+  // ✅ ONLY user route
   if (route === '#my-bookings') {
     return (
-        <div className="min-h-screen bg-turf-darker font-sans text-slate-100">
-            <Navbar />
-            <MyBookings />
-        </div>
+      <div className="min-h-screen bg-turf-darker font-sans text-slate-100">
+        <Navbar />
+        <MyBookings />
+      </div>
     );
   }
 
+  // ✅ MAIN SITE
   return (
     <div className="min-h-screen bg-turf-darker font-sans text-slate-100 selection:bg-turf-green selection:text-turf-darker">
       <Navbar />
