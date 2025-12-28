@@ -5,11 +5,11 @@ export default async function handler(req, res) {
     const { date } = req.query;
 
     if (!date) {
-      return res.status(400).json([]);
+      return res.status(200).json([]);
     }
 
-    const docRef = db.collection("slots").doc(date);
-    const snap = await docRef.get();
+    const ref = db.collection("slots").doc(date);
+    const snap = await ref.get();
 
     if (!snap.exists) {
       return res.status(200).json([]);
