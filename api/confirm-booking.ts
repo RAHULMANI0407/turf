@@ -1,32 +1,62 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from './lib/firebase.js';
+import Razorpay from "razorpay";
+import mongoose from "mongoose";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+// ⚠️ use SAME Slot schema you already use elsewhere
+const SlotSchema = new mongoose.Schema({
+  time: String,
+  isBooked: Boolean,
+  paymentId: String,
+});
 
-  const { bookingId, paymentId } = req.body;
+const Slot =
+  mongoose.models.Slot || mongoose.model("Slot", SlotSchema);
 
-  if (!bookingId) {
-    return res.status(400).json({ error: 'Booking ID is required' });
+// Mongo connect (simple & safe)
+const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) return;
+  await mongoose.connect(process.env.MONGO_URI as string);
+};
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID as string,
+  key_secret: process.env.RAZORPAY_KEY_SECRET as string,
+});
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const updateData: any = {
-      status: 'confirmed'
-    };
-    
-    // Save Payment ID (UTR/Ref) if provided
-    if (paymentId) {
-        updateData.paymentId = paymentId;
+    const { slotId, paymentId } = req.body;
+
+    if (!slotId || !paymentId) {
+      return res.status(400).json({ error: "Missing data" });
     }
 
-    await db.collection('bookings').doc(bookingId).update(updateData);
+    // 1️⃣ Connect DB
+    await connectDB();
+
+    // 2️⃣ Verify payment
+    const payment = await razorpay.payments.fetch(paymentId);
+    if (payment.status !== "captured") {
+      return res.status(400).json({ error: "Payment not verified" });
+    }
+
+    // 3️⃣ Block slot in DB
+    await Slot.updateOne(
+      { _id: slotId },
+      {
+        $set: {
+          isBooked: true,
+          paymentId: paymentId,
+        },
+      }
+    );
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error confirming booking:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error(error);
+    return res.status(500).json({ error: "Server error" });
   }
 }
