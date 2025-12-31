@@ -5,6 +5,13 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  // ✅ ENV CHECK (RUNS EVERY TIME)
+  console.log("ENV CHECK", {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    email: !!process.env.FIREBASE_CLIENT_EMAIL,
+    key: !!process.env.FIREBASE_PRIVATE_KEY,
+  });
+
   try {
     const { date } = req.query;
 
@@ -20,13 +27,7 @@ export default async function handler(
 
     return res.status(200).json(snap.data()?.slots || []);
   } catch (err: any) {
-    console.error("get-slots error:", err.message || err);
+    console.error("get-slots error:", err);
     return res.status(500).json({ error: "Internal Server Error" });
-    console.log("ENV CHECK", {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  email: !!process.env.FIREBASE_CLIENT_EMAIL,
-  key: !!process.env.FIREBASE_PRIVATE_KEY,
-});
-
   }
 }
