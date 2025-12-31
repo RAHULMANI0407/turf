@@ -1,4 +1,4 @@
-import { db } from "./lib/firebase.js";
+import { db } from "./lib/firebase";
 
 export default async function handler(req, res) {
   try {
