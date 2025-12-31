@@ -23,6 +23,7 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
   const [phone, setPhone] = useState("");
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   /* ---------- TIME CHECK ---------- */
   const isPastSlot = (startHour: number) => {
@@ -82,6 +83,21 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
     );
   };
 
+  /* ---------- SUCCESS HANDLER ---------- */
+  const handleSuccess = () => {
+    setSubmitting(false);
+    setShowSuccess(true);
+    
+    // Keep the stamp visible for 2.5 seconds, then reset
+    setTimeout(() => {
+      setShowSuccess(false);
+      setBookedSlots(prev => [...prev, ...selectedSlots]);
+      setSelectedSlots([]);
+      setName("");
+      setPhone("");
+    }, 2500);
+  };
+
   /* ---------- BOOKING FLOW ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,16 +149,14 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
                         });
                         
                         if (verifyRes.ok) {
-                            alert("Booking Successful!");
-                            setBookedSlots(prev => [...prev, ...selectedSlots]);
-                            setSelectedSlots([]);
-                            setName("");
-                            setPhone("");
+                            handleSuccess();
                         } else {
                             alert("Payment verified but slot update failed. Contact support.");
+                            setSubmitting(false);
                         }
                     } catch (error) {
                          alert("Verification error. Contact support.");
+                         setSubmitting(false);
                     }
                 },
                 prefill: {
@@ -184,8 +198,11 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
       
       if (confirm("Online payment unavailable. Continue via WhatsApp?")) {
           window.open(`https://wa.me/${CONTACT_PHONE}?text=${message}`, "_blank");
+          // Optionally show success animation here too if we treat WA message as "booking request sent"
+          handleSuccess(); 
+      } else {
+        setSubmitting(false);
       }
-      setSubmitting(false);
     } 
   };
 
@@ -197,9 +214,24 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
   };
 
   return (
-    <section id="book" className="py-20 bg-slate-900">
+    <section id="book" className="py-20 bg-slate-900 relative">
       <div className="max-w-4xl mx-auto px-4">
-        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-10">
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 md:p-10 relative overflow-hidden">
+          
+          {/* Success Stamp Overlay */}
+          {showSuccess && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px] animate-in fade-in duration-300">
+               <div className="text-center">
+                  <div className="border-8 border-turf-green text-turf-green px-8 py-4 rounded-xl text-5xl md:text-7xl font-black tracking-widest uppercase animate-stamp mix-blend-screen shadow-[0_0_50px_rgba(132,204,22,0.8)]">
+                    BOOKED
+                  </div>
+                  <p className="text-white mt-8 text-xl animate-in slide-in-from-bottom-5 fade-in duration-700 delay-500 font-semibold">
+                    See you on the field!
+                  </p>
+               </div>
+            </div>
+          )}
+
           <h2 className="text-3xl font-bold text-center text-white mb-8">
             Book Your Slot
           </h2>
