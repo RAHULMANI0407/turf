@@ -1,5 +1,5 @@
 {
-  "functions": {
-    "api/**/*.ts": {}
-  }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" }
+  ]
 }
