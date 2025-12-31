@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { TIME_SLOTS, PRICING, CONTACT_PHONE } from "../constants";
+import { TIME_SLOTS, CONTACT_PHONE } from "../constants";
 import Button from "./Button";
 import { Calendar, CheckCircle, Lock, Loader2 } from "lucide-react";
 
@@ -9,7 +9,11 @@ declare global {
   }
 }
 
-const BookingSection: React.FC = () => {
+interface BookingSectionProps {
+  pricing: { WEEKDAY: number; WEEKEND: number };
+}
+
+const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
   const today = new Date().toISOString().split("T")[0];
 
   const [selectedDate, setSelectedDate] = useState(today);
@@ -67,7 +71,7 @@ const BookingSection: React.FC = () => {
     return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
   }, [selectedDate]);
 
-  const hourlyRate = isWeekend ? PRICING.WEEKEND : PRICING.WEEKDAY;
+  const hourlyRate = isWeekend ? pricing.WEEKEND : pricing.WEEKDAY;
   const totalAmount = selectedSlots.length * hourlyRate;
 
   /* ---------- SLOT TOGGLE ---------- */
