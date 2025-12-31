@@ -1,23 +1,26 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { db } from "./lib/firebase";
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   try {
     const { date } = req.query;
 
-    if (!date) {
+    if (!date || typeof date !== "string") {
       return res.status(200).json([]);
     }
 
-    const ref = db.collection("slots").doc(date);
-    const snap = await ref.get();
+    const snap = await db.collection("slots").doc(date).get();
 
     if (!snap.exists) {
       return res.status(200).json([]);
     }
 
-    return res.status(200).json(snap.data().slots || []);
-  } catch (err) {
-    console.error("get-slots error:", err);
-    return res.status(500).json([]);
+    return res.status(200).json(snap.data()?.slots || []);
+  } catch (err: any) {
+    console.error("get-slots error:", err.message || err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }
