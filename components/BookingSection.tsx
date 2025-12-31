@@ -35,34 +35,54 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
     return now.getHours() >= startHour;
   };
 
-  /* ---------- LOAD BOOKED SLOTS ---------- */
+  /* ---------- LOAD BOOKED SLOTS & AUTO REFRESH ---------- */
   useEffect(() => {
     let isMounted = true;
-    const loadSlots = async () => {
-      setLoadingSlots(true);
+    let intervalId: NodeJS.Timeout;
+
+    const fetchSlots = async (isBackground = false) => {
+      if (!isBackground) setLoadingSlots(true);
       try {
         const res = await fetch(`/api/get-slots?date=${selectedDate}`);
         
         // If API route is missing (404) or errors (500), treat as empty slots (offline mode)
         if (!res.ok) {
-           if (isMounted) setBookedSlots([]);
+           if (isMounted && !isBackground) setBookedSlots([]);
            return;
         }
 
         const data = await res.json();
         if (isMounted) {
-            setBookedSlots(Array.isArray(data) ? data : []);
+            const newBookedSlots = Array.isArray(data) ? data : [];
+            setBookedSlots(newBookedSlots);
+            
+            // If a selected slot was just booked by someone else, remove it from selection
+            setSelectedSlots(prev => {
+                const filtered = prev.filter(id => !newBookedSlots.includes(id));
+                // Optional: You could show a toast here if filtered.length !== prev.length
+                return filtered;
+            });
         }
       } catch (err) {
         console.warn("Failed to fetch slots, defaulting to available.", err);
-        if (isMounted) setBookedSlots([]);
+        if (isMounted && !isBackground) setBookedSlots([]);
       } finally {
-        if (isMounted) setLoadingSlots(false);
+        if (isMounted && !isBackground) setLoadingSlots(false);
       }
     };
 
-    loadSlots();
-    return () => { isMounted = false; };
+    // Initial load
+    fetchSlots(false);
+
+    // Poll every 10 seconds
+    intervalId = setInterval(() => {
+        fetchSlots(true);
+    }, 10000);
+
+    return () => { 
+        isMounted = false; 
+        clearInterval(intervalId);
+    };
   }, [selectedDate]);
 
   /* ---------- PRICING ---------- */
