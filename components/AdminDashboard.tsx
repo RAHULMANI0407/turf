@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Save, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, Save, X, RefreshCw, AlertTriangle, Calendar, Search, User, Phone, Clock, CreditCard } from 'lucide-react';
 import Button from './Button';
 import { TIME_SLOTS } from '../constants';
 
@@ -12,7 +12,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing, onPricingUpdate }) => {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState<'slots' | 'pricing'>('slots');
+  const [activeTab, setActiveTab] = useState<'slots' | 'pricing' | 'bookings'>('slots');
   const [loading, setLoading] = useState(false);
 
   // Slots Management State
@@ -22,6 +22,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
 
   // Pricing State
   const [pricingForm, setPricingForm] = useState(currentPricing);
+
+  // Bookings Tab State
+  const [bookingFilterDate, setBookingFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bookingFilterPhone, setBookingFilterPhone] = useState('');
+  const [bookingsList, setBookingsList] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
 
   // Check Local Storage for session
   useEffect(() => {
@@ -37,10 +43,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
     setPricingForm(currentPricing);
   }, [currentPricing]);
 
-  // Load slots when date changes
+  // Load slots when date changes or tab switches
   useEffect(() => {
-    if (isAuthenticated && activeTab === 'slots') {
-      loadSlots();
+    if (isAuthenticated) {
+        if (activeTab === 'slots') {
+            loadSlots();
+        } else if (activeTab === 'bookings') {
+            loadBookings();
+        }
     }
   }, [selectedDate, isAuthenticated, activeTab]);
 
@@ -62,6 +72,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
       setBookedSlots([]);
     } finally {
       setLoadingSlots(false);
+    }
+  };
+
+  const loadBookings = async () => {
+    setLoadingBookings(true);
+    try {
+        let url = `/api/get-bookings?`;
+        
+        // Prefer phone search if entered, otherwise use date
+        if (bookingFilterPhone.trim()) {
+            url += `phone=${encodeURIComponent(bookingFilterPhone.trim())}`;
+        } else {
+            url += `date=${bookingFilterDate}`;
+        }
+        
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            setBookingsList(data.bookings || []);
+        } else {
+            setBookingsList([]);
+        }
+    } catch(e) {
+        console.error("Error loading bookings:", e);
+        setBookingsList([]);
+    } finally {
+        setLoadingBookings(false);
     }
   };
 
@@ -168,6 +205,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
     }
   };
 
+  const getSlotLabel = (slotId: string) => {
+    const slot = TIME_SLOTS.find(s => s.id === slotId);
+    return slot ? slot.label : slotId;
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -197,7 +239,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
   return (
     <div className="fixed inset-0 z-[60] bg-slate-950 overflow-y-auto">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8 bg-slate-900 p-4 rounded-xl border border-slate-800 sticky top-0 z-10">
+        <div className="flex justify-between items-center mb-8 bg-slate-900 p-4 rounded-xl border border-slate-800 sticky top-0 z-10 shadow-lg">
           <h1 className="text-xl md:text-2xl font-bold text-white flex items-center">
             <Lock className="w-6 h-6 text-turf-green mr-2" />
             Admin Dashboard
@@ -208,19 +250,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
           </div>
         </div>
 
-        <div className="flex space-x-4 mb-8 border-b border-slate-800 pb-1">
-          <button 
-            onClick={() => setActiveTab('slots')}
-            className={`pb-3 px-2 text-sm font-medium transition-colors ${activeTab === 'slots' ? 'text-turf-green border-b-2 border-turf-green' : 'text-gray-400 hover:text-white'}`}
-          >
-            Manage Slots
-          </button>
-          <button 
-             onClick={() => setActiveTab('pricing')}
-             className={`pb-3 px-2 text-sm font-medium transition-colors ${activeTab === 'pricing' ? 'text-turf-green border-b-2 border-turf-green' : 'text-gray-400 hover:text-white'}`}
-          >
-            Pricing Config
-          </button>
+        <div className="flex space-x-2 md:space-x-4 mb-8 border-b border-slate-800 overflow-x-auto">
+          {['slots', 'bookings', 'pricing'].map((tab) => (
+            <button 
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`pb-3 px-4 text-sm font-medium transition-colors whitespace-nowrap capitalize ${
+                    activeTab === tab 
+                    ? 'text-turf-green border-b-2 border-turf-green' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+            >
+                {tab === 'bookings' ? 'Past Bookings' : tab === 'slots' ? 'Manage Slots' : 'Pricing Config'}
+            </button>
+          ))}
         </div>
 
         {activeTab === 'slots' && (
@@ -271,6 +314,96 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'bookings' && (
+            <div className="animate-in fade-in duration-300">
+                <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col md:flex-row gap-4 items-end">
+                    <div className="w-full md:w-auto">
+                        <label className="text-xs text-gray-500 uppercase font-bold mb-2 block">Filter by Date</label>
+                        <div className="relative">
+                            <Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                            <input 
+                                type="date"
+                                value={bookingFilterDate}
+                                onChange={(e) => {
+                                    setBookingFilterDate(e.target.value);
+                                    setBookingFilterPhone(''); // Clear phone when date changes to avoid confusion
+                                }}
+                                className="w-full md:w-48 pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-turf-green outline-none"
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="w-full md:w-auto flex-1">
+                         <label className="text-xs text-gray-500 uppercase font-bold mb-2 block">Or Search Phone</label>
+                         <div className="relative">
+                            <Search className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                            <input 
+                                type="tel"
+                                placeholder="Enter mobile number..."
+                                value={bookingFilterPhone}
+                                onChange={(e) => setBookingFilterPhone(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-turf-green outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <Button onClick={loadBookings} disabled={loadingBookings} className="w-full md:w-auto">
+                        {loadingBookings ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Search'}
+                    </Button>
+                </div>
+
+                {loadingBookings ? (
+                    <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-turf-green w-8 h-8" /></div>
+                ) : bookingsList.length === 0 ? (
+                    <div className="text-center py-20 text-gray-500 bg-slate-900/50 rounded-2xl border border-slate-800 border-dashed">
+                        <p>No bookings found for the selected criteria.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {bookingsList.map((booking) => (
+                            <div key={booking.id} className="bg-slate-900 border border-slate-800 p-4 md:p-6 rounded-2xl flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-turf-green/30 transition-colors">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${booking.status === 'confirmed' ? 'bg-turf-green text-black' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                                            {booking.status}
+                                        </span>
+                                        <span className="text-gray-500 text-xs">ID: {booking.id.slice(0, 8)}...</span>
+                                    </div>
+                                    <h4 className="text-lg font-bold text-white flex items-center gap-2">
+                                        <User className="w-4 h-4 text-gray-400" />
+                                        {booking.name}
+                                    </h4>
+                                    <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                                        <span className="flex items-center gap-1">
+                                            <Phone className="w-3 h-3" /> {booking.phone}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <Calendar className="w-3 h-3" /> {booking.date}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-6 min-w-[200px] space-y-2">
+                                    <div className="flex items-start gap-2">
+                                        <Clock className="w-4 h-4 text-turf-green mt-0.5" />
+                                        <div className="text-sm text-gray-300">
+                                            {booking.slots && booking.slots.map((sid: string) => (
+                                                <div key={sid}>{getSlotLabel(sid)}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-turf-green font-bold text-lg">
+                                        <CreditCard className="w-5 h-5" />
+                                        ₹{booking.amount}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         )}
 
         {activeTab === 'pricing' && (
