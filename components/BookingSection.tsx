@@ -40,7 +40,6 @@ const BookingSection: React.FC = () => {
         
         // If API route is missing (404) or errors (500), treat as empty slots (offline mode)
         if (!res.ok) {
-           console.warn(`API Error (${res.status}): Running in offline mode.`);
            if (isMounted) setBookedSlots([]);
            return;
         }
@@ -98,39 +97,48 @@ const BookingSection: React.FC = () => {
         body: JSON.stringify({ amount: totalAmount }),
       });
 
-      if (orderRes.ok) {
-        const order = await orderRes.json();
+      if (!orderRes.ok) {
+        throw new Error("Payment initialization failed");
+      }
+
+      const orderData = await orderRes.json();
         
-        // Open Razorpay
-        if (window.Razorpay) {
-            const options = {
-                key: "YOUR_RAZORPAY_KEY_ID_PUBLIC", // Ideally fetch this or use env if exposed
-                amount: order.amount,
-                currency: order.currency,
+      // Open Razorpay
+      if (window.Razorpay) {
+          const options = {
+                key: orderData.key, // Dynamic key from backend
+                amount: orderData.amount,
+                currency: orderData.currency,
                 name: "TurfPro India",
                 description: "Turf Booking",
-                order_id: order.id,
+                order_id: orderData.id,
                 handler: async function (response: any) {
-                    // Verify payment
-                    const verifyRes = await fetch("/api/verify-payment", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            ...response,
-                            date: selectedDate,
-                            slots: selectedSlots,
-                            name,
-                            phone,
-                            amount: totalAmount
-                        }),
-                    });
-                    
-                    if (verifyRes.ok) {
-                        alert("Booking Successful!");
-                        setBookedSlots(prev => [...prev, ...selectedSlots]);
-                        setSelectedSlots([]);
-                    } else {
-                        alert("Payment verification failed");
+                    try {
+                        // Verify payment
+                        const verifyRes = await fetch("/api/verify-payment", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                ...response,
+                                date: selectedDate,
+                                slots: selectedSlots,
+                                name,
+                                phone,
+                                amount: totalAmount
+                            }),
+                        });
+                        
+                        if (verifyRes.ok) {
+                            alert("Booking Successful!");
+                            setBookedSlots(prev => [...prev, ...selectedSlots]);
+                            setSelectedSlots([]);
+                            setName("");
+                            setPhone("");
+                        } else {
+                            alert("Payment verified but slot update failed. Contact support.");
+                        }
+                    } catch (error) {
+                         alert("Verification error. Contact support.");
                     }
                 },
                 prefill: {
@@ -140,14 +148,23 @@ const BookingSection: React.FC = () => {
                 theme: {
                     color: "#84cc16",
                 },
+                modal: {
+                    ondismiss: function() {
+                        setSubmitting(false);
+                    }
+                }
             };
+
             const rzp1 = new window.Razorpay(options);
+            
+            rzp1.on('payment.failed', function (response: any){
+                alert(`Payment Failed: ${response.error.description}`);
+                setSubmitting(false);
+            });
+
             rzp1.open();
-        } else {
-             throw new Error("Razorpay SDK not loaded");
-        }
       } else {
-        throw new Error("Could not initiate payment (Backend may be offline)");
+           throw new Error("Razorpay SDK not loaded");
       }
 
     } catch (err) {
@@ -160,10 +177,12 @@ const BookingSection: React.FC = () => {
         .join(", ");
 
       const message = `Hi, I want to book the turf.%0A%0AName: *${name}*%0ADate: *${selectedDate}*%0ATime: *${timeRange}*%0ATotal: *₹${totalAmount}*`;
-      window.open(`https://wa.me/${CONTACT_PHONE}?text=${message}`, "_blank");
-    } finally {
+      
+      if (confirm("Online payment unavailable. Continue via WhatsApp?")) {
+          window.open(`https://wa.me/${CONTACT_PHONE}?text=${message}`, "_blank");
+      }
       setSubmitting(false);
-    }
+    } 
   };
 
   /* ---------- GROUP SLOTS ---------- */
