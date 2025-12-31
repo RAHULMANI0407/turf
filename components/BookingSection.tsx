@@ -22,38 +22,50 @@ const BookingSection: React.FC = () => {
 
   /* ---------- TIME CHECK ---------- */
   const isPastSlot = (startHour: number) => {
+    // Only check time if selected date is today
+    if (selectedDate !== today) return false;
+    
     const now = new Date();
-    const [y, m, d] = selectedDate.split("-").map(Number);
-    const slotEnd = new Date(y, m - 1, d, startHour + 1, 0, 0);
-    return now >= slotEnd;
+    // Assuming hours are in 24h format in TIME_SLOTS
+    return now.getHours() >= startHour;
   };
 
   /* ---------- LOAD BOOKED SLOTS ---------- */
   useEffect(() => {
-  const loadSlots = async () => {
-    setLoadingSlots(true);
-    try {
-      const res = await fetch(
-        `/api/get-slots?date=${selectedDate}`
-      );
+    let isMounted = true;
+    const loadSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const res = await fetch(`/api/get-slots?date=${selectedDate}`);
+        
+        // If API route is missing (404) or errors (500), treat as empty slots (offline mode)
+        if (!res.ok) {
+           console.warn(`API Error (${res.status}): Running in offline mode.`);
+           if (isMounted) setBookedSlots([]);
+           return;
+        }
 
-      const data = await res.json();
-      setBookedSlots(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Failed to load slots", err);
-      setBookedSlots([]);
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
+        const data = await res.json();
+        if (isMounted) {
+            setBookedSlots(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch slots, defaulting to available.", err);
+        if (isMounted) setBookedSlots([]);
+      } finally {
+        if (isMounted) setLoadingSlots(false);
+      }
+    };
 
-  loadSlots();
-}, [selectedDate]);
+    loadSlots();
+    return () => { isMounted = false; };
+  }, [selectedDate]);
 
   /* ---------- PRICING ---------- */
   const isWeekend = useMemo(() => {
-    const d = new Date(selectedDate + "T00:00:00");
-    return d.getDay() === 0 || d.getDay() === 6;
+    const d = new Date(selectedDate);
+    const day = d.getDay();
+    return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
   }, [selectedDate]);
 
   const hourlyRate = isWeekend ? PRICING.WEEKEND : PRICING.WEEKDAY;
@@ -67,7 +79,7 @@ const BookingSection: React.FC = () => {
     );
   };
 
-  /* ---------- PAY & BOOK ---------- */
+  /* ---------- BOOKING FLOW ---------- */
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -79,28 +91,68 @@ const BookingSection: React.FC = () => {
     setSubmitting(true);
 
     try {
-      // ✅ SAVE TO SAME COLLECTION
-      const ref = doc(db, "slots", selectedDate);
-      const snap = await getDoc(ref);
+      // 1. Try to create order
+      const orderRes = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: totalAmount }),
+      });
 
-      const existingSlots = snap.exists() ? snap.data().slots || [] : [];
-      const updatedSlots = [...new Set([...existingSlots, ...selectedSlots])];
+      if (orderRes.ok) {
+        const order = await orderRes.json();
+        
+        // Open Razorpay
+        if (window.Razorpay) {
+            const options = {
+                key: "YOUR_RAZORPAY_KEY_ID_PUBLIC", // Ideally fetch this or use env if exposed
+                amount: order.amount,
+                currency: order.currency,
+                name: "TurfPro India",
+                description: "Turf Booking",
+                order_id: order.id,
+                handler: async function (response: any) {
+                    // Verify payment
+                    const verifyRes = await fetch("/api/verify-payment", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            ...response,
+                            date: selectedDate,
+                            slots: selectedSlots,
+                            name,
+                            phone,
+                            amount: totalAmount
+                        }),
+                    });
+                    
+                    if (verifyRes.ok) {
+                        alert("Booking Successful!");
+                        setBookedSlots(prev => [...prev, ...selectedSlots]);
+                        setSelectedSlots([]);
+                    } else {
+                        alert("Payment verification failed");
+                    }
+                },
+                prefill: {
+                    name: name,
+                    contact: phone,
+                },
+                theme: {
+                    color: "#84cc16",
+                },
+            };
+            const rzp1 = new window.Razorpay(options);
+            rzp1.open();
+        } else {
+             throw new Error("Razorpay SDK not loaded");
+        }
+      } else {
+        throw new Error("Could not initiate payment (Backend may be offline)");
+      }
 
-      await setDoc(
-        ref,
-        {
-          slots: updatedSlots,
-          updatedAt: Date.now(),
-        },
-        { merge: true }
-      );
-
-      setBookedSlots(updatedSlots);
-      setSelectedSlots([]);
-      setName("");
-      setPhone("");
-
-      // ✅ FIX: send ONLY selected slots
+    } catch (err) {
+      console.error("Booking Error or Fallback:", err);
+      // Fallback to WhatsApp if payment fails or API not configured
       const timeRange = TIME_SLOTS.filter((s) =>
         selectedSlots.includes(s.id)
       )
@@ -109,11 +161,6 @@ const BookingSection: React.FC = () => {
 
       const message = `Hi, I want to book the turf.%0A%0AName: *${name}*%0ADate: *${selectedDate}*%0ATime: *${timeRange}*%0ATotal: *₹${totalAmount}*`;
       window.open(`https://wa.me/${CONTACT_PHONE}?text=${message}`, "_blank");
-
-      alert("Booking confirmed 🎉");
-    } catch (err) {
-      console.error(err);
-      alert("Booking failed. Try again.");
     } finally {
       setSubmitting(false);
     }
@@ -126,7 +173,6 @@ const BookingSection: React.FC = () => {
     Evening: TIME_SLOTS.filter((s) => s.period === "Evening"),
   };
 
-  /* ---------- UI ---------- */
   return (
     <section id="book" className="py-20 bg-slate-900">
       <div className="max-w-4xl mx-auto px-4">
@@ -148,7 +194,7 @@ const BookingSection: React.FC = () => {
                     setSelectedDate(e.target.value);
                     setSelectedSlots([]);
                   }}
-                  className="w-full pl-10 py-3 bg-slate-800 text-white rounded-xl border border-slate-700"
+                  className="w-full pl-10 py-3 bg-slate-800 text-white rounded-xl border border-slate-700 focus:border-lime-500 focus:ring-1 focus:ring-lime-500 outline-none"
                 />
               </div>
             </div>
@@ -156,15 +202,14 @@ const BookingSection: React.FC = () => {
             <div className={loadingSlots ? "opacity-60 pointer-events-none" : ""}>
               {Object.entries(groupedSlots).map(([period, slots]) => (
                 <div key={period} className="mb-6">
-                  <h4 className="text-xs uppercase text-gray-500 mb-2">
+                  <h4 className="text-xs uppercase text-gray-500 mb-2 font-semibold tracking-wider">
                     {period}
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {slots.map((slot) => {
-                      const closed =
-                        bookedSlots.includes(slot.id) ||
-                        isPastSlot(slot.hour);
-
+                      const isBooked = bookedSlots.includes(slot.id);
+                      const isPast = isPastSlot(slot.hour);
+                      const closed = isBooked || isPast;
                       const selected = selectedSlots.includes(slot.id);
 
                       return (
@@ -173,22 +218,27 @@ const BookingSection: React.FC = () => {
                           type="button"
                           disabled={closed}
                           onClick={() => toggleSlot(slot.id)}
-                          className={`relative py-2 px-3 text-sm rounded-lg border
+                          className={`relative py-3 px-2 text-sm rounded-lg border transition-all duration-200
                             ${
                               closed
-                                ? "bg-slate-800 text-gray-600 cursor-not-allowed"
+                                ? "bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed"
                                 : selected
-                                ? "bg-lime-400 text-black font-bold"
-                                : "bg-slate-800 text-gray-300 hover:border-lime-400"
+                                ? "bg-lime-500 border-lime-500 text-slate-900 font-bold shadow-[0_0_15px_rgba(132,204,22,0.4)]"
+                                : "bg-slate-800 border-slate-700 text-gray-300 hover:border-lime-500 hover:text-white"
                             }`}
                         >
-                          {closed && (
-                            <Lock className="w-3 h-3 absolute top-1 right-1" />
+                          {isBooked && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg">
+                                <span className="text-xs font-bold text-red-500 transform -rotate-12 border border-red-500 px-1 rounded">BOOKED</span>
+                            </div>
+                          )}
+                           {isPast && !isBooked && (
+                            <Lock className="w-3 h-3 absolute top-1 right-1 opacity-50" />
                           )}
                           {selected && (
-                            <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-500 rounded-full" />
+                            <CheckCircle className="w-4 h-4 absolute -top-2 -right-2 bg-white text-lime-600 rounded-full" />
                           )}
-                          {isPastSlot(slot.hour) ? "Closed" : slot.label}
+                          <span className="relative z-10">{slot.label}</span>
                         </button>
                       );
                     })}
@@ -197,44 +247,50 @@ const BookingSection: React.FC = () => {
               ))}
             </div>
 
-            <div>
-              <label className="text-sm text-gray-300">Your Name</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                <label className="text-sm text-gray-300">Your Name</label>
+                <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="John Doe"
+                    className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700 focus:border-lime-500 focus:ring-1 focus:ring-lime-500 outline-none"
+                />
+                </div>
+
+                <div>
+                <label className="text-sm text-gray-300">Mobile Number</label>
+                <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="9876543210"
+                    required
+                    pattern="[0-9]{10}"
+                    className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700 focus:border-lime-500 focus:ring-1 focus:ring-lime-500 outline-none"
+                />
+                </div>
             </div>
 
-            <div>
-              <label className="text-sm text-gray-300">Mobile Number</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="10-digit mobile number"
-                required
-                className="w-full mt-2 py-3 px-4 bg-slate-800 text-white rounded-xl border border-slate-700"
-              />
-            </div>
-
-            <div className="flex justify-between items-center bg-slate-800 p-5 rounded-xl">
-              <div>
-                <p className="text-gray-400 text-sm">Total</p>
-                <p className="text-2xl font-bold text-white">₹{totalAmount}</p>
+            <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50">
+              <div className="mb-4 sm:mb-0">
+                <p className="text-gray-400 text-sm">Total Amount</p>
+                <p className="text-3xl font-bold text-white">₹{totalAmount}</p>
+                {selectedSlots.length > 0 && <p className="text-xs text-lime-400 mt-1">{selectedSlots.length} slots selected</p>}
               </div>
 
               <Button
                 type="submit"
                 disabled={selectedSlots.length === 0 || submitting}
+                className="w-full sm:w-auto min-w-[200px]"
               >
                 {submitting ? (
                   <Loader2 className="animate-spin w-5 h-5 mr-2" />
                 ) : (
                   <Lock className="w-5 h-5 mr-2" />
                 )}
-                Book Slot
+                {submitting ? "Processing..." : "Confirm Booking"}
               </Button>
             </div>
           </form>
