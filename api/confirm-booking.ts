@@ -44,17 +44,13 @@ export default async function handler(req: any, res: any) {
     }
 
     // 3️⃣ Block slot in DB
-    await Slot.updateOne(
-      { _id: slotId },
-      {
-        $set: {
-          isBooked: true,
-          paymentId: paymentId,
-        },
-      }
-    );
+await Slot.updateOne(
+  { _id: slotId },
+  { $set: { isBooked: true, paymentId } }
+);
 
-    return res.status(200).json({ success: true });
+res.status(200).json({ success: true });
+
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Server error" });
