@@ -30,12 +30,13 @@ const BookingSection: React.FC = () => {
     return now >= slotEnd;
   };
 
-  /* ---------- LOAD BOOKED SLOTS (GLOBAL) ---------- */
+  /* ---------- LOAD BOOKED SLOTS ---------- */
   useEffect(() => {
     const loadSlots = async () => {
       setLoadingSlots(true);
       try {
-        const ref = doc(db, "bookings", selectedDate);
+        // ✅ FIX: use existing "slots" collection
+        const ref = doc(db, "slots", selectedDate);
         const snap = await getDoc(ref);
         setBookedSlots(snap.exists() ? snap.data().slots || [] : []);
       } catch (err) {
@@ -77,8 +78,8 @@ const BookingSection: React.FC = () => {
     setSubmitting(true);
 
     try {
-      // 🔥 SAVE SLOT DIRECTLY TO FIREBASE
-      const ref = doc(db, "bookings", selectedDate);
+      // ✅ SAVE TO SAME COLLECTION
+      const ref = doc(db, "slots", selectedDate);
       const snap = await getDoc(ref);
 
       const existingSlots = snap.exists() ? snap.data().slots || [] : [];
@@ -88,22 +89,19 @@ const BookingSection: React.FC = () => {
         ref,
         {
           slots: updatedSlots,
-          name,
-          phone,
           updatedAt: Date.now(),
         },
         { merge: true }
       );
 
-      // ✅ UPDATE UI
       setBookedSlots(updatedSlots);
       setSelectedSlots([]);
       setName("");
       setPhone("");
 
-      // ✅ OPEN WHATSAPP
+      // ✅ FIX: send ONLY selected slots
       const timeRange = TIME_SLOTS.filter((s) =>
-        updatedSlots.includes(s.id)
+        selectedSlots.includes(s.id)
       )
         .map((s) => s.label)
         .join(", ");
@@ -137,7 +135,6 @@ const BookingSection: React.FC = () => {
           </h2>
 
           <form onSubmit={handleBook} className="space-y-8">
-            {/* DATE */}
             <div>
               <label className="text-sm text-gray-300">Select Date</label>
               <div className="relative mt-2">
@@ -155,7 +152,6 @@ const BookingSection: React.FC = () => {
               </div>
             </div>
 
-            {/* SLOTS */}
             <div className={loadingSlots ? "opacity-60 pointer-events-none" : ""}>
               {Object.entries(groupedSlots).map(([period, slots]) => (
                 <div key={period} className="mb-6">
@@ -200,7 +196,6 @@ const BookingSection: React.FC = () => {
               ))}
             </div>
 
-            {/* NAME */}
             <div>
               <label className="text-sm text-gray-300">Your Name</label>
               <input
@@ -211,7 +206,6 @@ const BookingSection: React.FC = () => {
               />
             </div>
 
-            {/* PHONE */}
             <div>
               <label className="text-sm text-gray-300">Mobile Number</label>
               <input
@@ -224,7 +218,6 @@ const BookingSection: React.FC = () => {
               />
             </div>
 
-            {/* SUMMARY */}
             <div className="flex justify-between items-center bg-slate-800 p-5 rounded-xl">
               <div>
                 <p className="text-gray-400 text-sm">Total</p>
