@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { firestore } from 'firebase-admin';
 import { db } from './lib/firebase.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -6,13 +7,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { date } = req.query;
+  const { date, phone } = req.query;
 
   try {
-    let query = db.collection('bookings').orderBy('createdAt', 'desc');
+    if (!db) return res.status(200).json({ bookings: [] });
 
-    if (date && typeof date === 'string') {
+    let query: firestore.Query = db.collection('bookings');
+
+    // Priority filter: Phone (if provided)
+    if (phone && typeof phone === 'string' && phone.trim() !== '') {
+      query = query.where('phone', '==', phone);
+    } 
+    // Secondary filter: Date (if provided)
+    else if (date && typeof date === 'string' && date.trim() !== '') {
       query = query.where('date', '==', date);
+    } 
+    // Default: Recent bookings
+    else {
+      query = query.orderBy('createdAt', 'desc').limit(50);
     }
 
     const snapshot = await query.get();
@@ -20,6 +32,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: doc.id,
       ...doc.data()
     }));
+
+    // If we used a 'where' clause, we might not have ordered by createdAt in the query 
+    // to avoid composite index requirements. Sort in memory.
+    if (phone || date) {
+        bookings.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
 
     return res.status(200).json({ bookings });
   } catch (error) {
