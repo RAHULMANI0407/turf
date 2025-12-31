@@ -1,9 +1,13 @@
 import React from 'react';
-import { Phone, MapPin, Instagram, Facebook } from 'lucide-react';
+import { Phone, MapPin, Instagram, Facebook, Shield } from 'lucide-react';
 import { CONTACT_PHONE, LOCATION_MAP_URL } from '../constants';
 import Button from './Button';
 
-const Contact: React.FC = () => {
+interface ContactProps {
+  onAdminClick: () => void;
+}
+
+const Contact: React.FC<ContactProps> = ({ onAdminClick }) => {
   return (
     <footer id="contact" className="bg-slate-900 border-t border-slate-800 pt-16 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -34,7 +38,7 @@ const Contact: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-white font-semibold">Phone</h4>
-                    <a href={`tel:${CONTACT_PHONE}`} className="text-gray-400 hover:text-turf-green transition-colors">+91 98405 00943</a>
+                    <a href={`tel:${CONTACT_PHONE}`} className="text-gray-400 hover:text-turf-green transition-colors">+91 98765 43210</a>
                   </div>
                 </div>
               </div>
@@ -69,7 +73,10 @@ const Contact: React.FC = () => {
           <p className="text-gray-500 text-sm mb-4 md:mb-0">
             © {new Date().getFullYear()} TurfPro India. All rights reserved.
           </p>
-          <div className="flex space-x-6">
+          <div className="flex items-center space-x-6">
+            <button onClick={onAdminClick} className="text-gray-700 hover:text-gray-500 transition-colors" title="Admin">
+               <Shield className="w-4 h-4" />
+            </button>
             <a href="#" className="text-gray-500 hover:text-white transition-colors">
               <Instagram className="w-5 h-5" />
             </a>
