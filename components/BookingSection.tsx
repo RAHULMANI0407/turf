@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { TIME_SLOTS, PRICING, CONTACT_PHONE } from "../constants";
 import Button from "./Button";
 import { Calendar, CheckCircle, Lock, Loader2 } from "lucide-react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
 
 declare global {
   interface Window {
@@ -32,22 +30,25 @@ const BookingSection: React.FC = () => {
 
   /* ---------- LOAD BOOKED SLOTS ---------- */
   useEffect(() => {
-    const loadSlots = async () => {
-      setLoadingSlots(true);
-      try {
-        // ✅ FIX: use existing "slots" collection
-        const ref = doc(db, "slots", selectedDate);
-        const snap = await getDoc(ref);
-        setBookedSlots(snap.exists() ? snap.data().slots || [] : []);
-      } catch (err) {
-        console.error("Failed to load slots", err);
-      } finally {
-        setLoadingSlots(false);
-      }
-    };
+  const loadSlots = async () => {
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(
+        `/api/get-slots?date=${selectedDate}`
+      );
 
-    loadSlots();
-  }, [selectedDate]);
+      const data = await res.json();
+      setBookedSlots(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load slots", err);
+      setBookedSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  loadSlots();
+}, [selectedDate]);
 
   /* ---------- PRICING ---------- */
   const isWeekend = useMemo(() => {
