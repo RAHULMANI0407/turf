@@ -7,7 +7,6 @@ declare global {
 }
 
 type Slot = {
-  _id: string;
   time: string;
   isBooked: boolean;
 };
@@ -16,12 +15,16 @@ export default function App() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
 
+  // 🔑 CHANGE DATE AS YOU WANT
+  const selectedDate = "2025-01-01";
+
   const fetchSlots = async () => {
     try {
-      const res = await fetch("/api/get-slots");
+      const res = await fetch(`/api/get-slots?date=${selectedDate}`);
       const data = await res.json();
-      setSlots(data || []);
-    } catch {
+      setSlots(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
       setSlots([]);
     }
   };
@@ -31,11 +34,14 @@ export default function App() {
   }, []);
 
   const payNow = async () => {
-    if (!selectedSlot) return alert("Select slot");
+    if (!selectedSlot) {
+      alert("Select a slot");
+      return;
+    }
 
-    const order = await fetch("/api/create-order", { method: "POST" }).then(r =>
-      r.json()
-    );
+    const order = await fetch("/api/create-order", {
+      method: "POST",
+    }).then(r => r.json());
 
     new window.Razorpay({
       key: import.meta.env.VITE_RAZORPAY_KEY,
@@ -47,12 +53,13 @@ export default function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            slotId: selectedSlot._id,
+            date: selectedDate,
+            time: selectedSlot.time,
             paymentId: res.razorpay_payment_id,
           }),
         });
 
-        alert("Booked");
+        alert("Slot booked");
         setSelectedSlot(null);
         fetchSlots();
       },
@@ -64,15 +71,19 @@ export default function App() {
       <h1 className="text-xl mb-4">Select Slot</h1>
 
       <div className="flex flex-wrap gap-2">
-        {slots.map(slot => (
+        {slots.length === 0 && (
+          <p className="text-gray-400">No slots available</p>
+        )}
+
+        {slots.map((slot, i) => (
           <button
-            key={slot._id}
+            key={i}
             disabled={slot.isBooked}
             onClick={() => setSelectedSlot(slot)}
             className={`px-4 py-2 rounded ${
               slot.isBooked
-                ? "bg-gray-500"
-                : selectedSlot?._id === slot._id
+                ? "bg-gray-600 cursor-not-allowed"
+                : selectedSlot?.time === slot.time
                 ? "bg-green-600"
                 : "bg-blue-600"
             }`}
@@ -85,7 +96,7 @@ export default function App() {
       <button
         onClick={payNow}
         disabled={!selectedSlot}
-        className="mt-4 px-6 py-3 bg-black"
+        className="mt-6 px-6 py-3 bg-black rounded"
       >
         Pay & Book
       </button>
