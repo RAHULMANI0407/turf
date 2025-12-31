@@ -22,5 +22,11 @@ export default async function handler(
   } catch (err: any) {
     console.error("get-slots error:", err.message || err);
     return res.status(500).json({ error: "Internal Server Error" });
+    console.log("ENV CHECK", {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  email: !!process.env.FIREBASE_CLIENT_EMAIL,
+  key: !!process.env.FIREBASE_PRIVATE_KEY,
+});
+
   }
 }
