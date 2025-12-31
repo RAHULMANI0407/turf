@@ -1,8 +1,11 @@
 import React from 'react';
-import { PRICING } from '../constants';
 import { Check } from 'lucide-react';
 
-const Pricing: React.FC = () => {
+interface PricingProps {
+  pricing: { WEEKDAY: number; WEEKEND: number };
+}
+
+const Pricing: React.FC<PricingProps> = ({ pricing }) => {
   return (
     <section id="pricing" className="py-20 bg-turf-darker border-t border-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -20,7 +23,7 @@ const Pricing: React.FC = () => {
             <h3 className="text-xl font-semibold text-turf-green mb-2">Weekdays</h3>
             <p className="text-gray-400 mb-6">Mon - Fri</p>
             <div className="flex items-baseline mb-8">
-              <span className="text-5xl font-extrabold text-white">₹{PRICING.WEEKDAY}</span>
+              <span className="text-5xl font-extrabold text-white">₹{pricing.WEEKDAY}</span>
               <span className="text-gray-400 ml-2">/ hour</span>
             </div>
             <ul className="space-y-4 mb-8">
@@ -44,7 +47,7 @@ const Pricing: React.FC = () => {
             <h3 className="text-xl font-semibold text-turf-green mb-2">Weekends</h3>
             <p className="text-gray-400 mb-6">Sat - Sun</p>
             <div className="flex items-baseline mb-8">
-              <span className="text-5xl font-extrabold text-white">₹{PRICING.WEEKEND}</span>
+              <span className="text-5xl font-extrabold text-white">₹{pricing.WEEKEND}</span>
               <span className="text-gray-400 ml-2">/ hour</span>
             </div>
             <ul className="space-y-4 mb-8">
