@@ -74,10 +74,10 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
     // Initial load
     fetchSlots(false);
 
-    // Poll every 10 seconds
+    // Poll every 5 seconds
     intervalId = setInterval(() => {
         fetchSlots(true);
-    }, 10000);
+    }, 5000);
 
     return () => { 
         isMounted = false; 
