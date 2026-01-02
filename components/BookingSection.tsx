@@ -38,7 +38,7 @@ const BookingSection: React.FC<BookingSectionProps> = ({ pricing }) => {
   /* ---------- LOAD BOOKED SLOTS & AUTO REFRESH ---------- */
   useEffect(() => {
     let isMounted = true;
-    let intervalId: NodeJS.Timeout;
+    let intervalId: any;
 
     const fetchSlots = async (isBackground = false) => {
       if (!isBackground) setLoadingSlots(true);
