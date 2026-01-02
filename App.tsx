@@ -7,10 +7,12 @@ import Pricing from './components/Pricing';
 import Gallery from './components/Gallery';
 import Contact from './components/Contact';
 import AdminDashboard from './components/AdminDashboard';
+import MyBookings from './components/MyBookings';
 import { PRICING as DEFAULT_PRICING } from './constants';
 
 const App: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isMyBookingsOpen, setIsMyBookingsOpen] = useState(false);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
 
   const fetchPricing = async () => {
@@ -33,7 +35,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-turf-darker font-sans text-slate-100 selection:bg-turf-green selection:text-turf-darker relative">
-      <Navbar />
+      <Navbar onMyBookingsClick={() => setIsMyBookingsOpen(true)} />
       <main>
         <Hero />
         <Features />
@@ -49,6 +51,10 @@ const App: React.FC = () => {
           currentPricing={pricing}
           onPricingUpdate={fetchPricing}
         />
+      )}
+
+      {isMyBookingsOpen && (
+        <MyBookings onClose={() => setIsMyBookingsOpen(false)} />
       )}
     </div>
   );
