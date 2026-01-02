@@ -54,6 +54,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
     }
   }, [selectedDate, isAuthenticated, activeTab]);
 
+  // Automatic refresh for Bookings tab
+  useEffect(() => {
+    let intervalId: any;
+
+    if (isAuthenticated && activeTab === 'bookings') {
+      // Refresh every 10 seconds
+      intervalId = setInterval(() => {
+        loadBookings(true); // silent refresh
+      }, 10000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isAuthenticated, activeTab, bookingFilterDate, bookingFilterPhone]);
+
   const loadSlots = async () => {
     setLoadingSlots(true);
     try {
@@ -75,8 +91,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
     }
   };
 
-  const loadBookings = async () => {
-    setLoadingBookings(true);
+  const loadBookings = async (isBackground: boolean = false) => {
+    if (!isBackground) setLoadingBookings(true);
     try {
         let url = `/api/get-bookings?`;
         
@@ -92,13 +108,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
             const data = await res.json();
             setBookingsList(data.bookings || []);
         } else {
-            setBookingsList([]);
+            // Don't clear list on background error to prevent flashing empty state
+            if (!isBackground) setBookingsList([]);
         }
     } catch(e) {
         console.error("Error loading bookings:", e);
-        setBookingsList([]);
+        if (!isBackground) setBookingsList([]);
     } finally {
-        setLoadingBookings(false);
+        if (!isBackground) setLoadingBookings(false);
     }
   };
 
@@ -349,7 +366,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, currentPricing
                         </div>
                     </div>
 
-                    <Button onClick={loadBookings} disabled={loadingBookings} className="w-full md:w-auto">
+                    <Button onClick={() => loadBookings(false)} disabled={loadingBookings} className="w-full md:w-auto">
                         {loadingBookings ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Search'}
                     </Button>
                 </div>
