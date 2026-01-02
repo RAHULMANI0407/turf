@@ -1,30 +1,27 @@
 import React, { useState } from 'react';
-import { Menu, X, Trophy } from 'lucide-react';
+import { Menu, X, Trophy, Receipt } from 'lucide-react';
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  onMyBookingsClick: () => void;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onMyBookingsClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
-    { name: 'Home', href: '/#home' },
-    { name: 'About', href: '/#features' },
-    { name: 'Pricing', href: '/#pricing' },
-    { name: 'Gallery', href: '/#gallery' },
-    { name: 'My Bookings', href: '#my-bookings' },
+    { name: 'Home', href: '#home' },
+    { name: 'About', href: '#features' },
+    { name: 'Pricing', href: '#pricing' },
+    { name: 'Gallery', href: '#gallery' },
+    { name: 'Contact', href: '#contact' },
   ];
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // If it's a hash link on the main page, prevent default and scroll
-    if (href.startsWith('/#') && window.location.hash !== '#my-bookings' && window.location.pathname === '/') {
-       e.preventDefault();
-       setIsOpen(false);
-       const targetId = href.replace('/#', '#');
-       const element = document.querySelector(targetId);
-       if (element) {
-         element.scrollIntoView({ behavior: 'smooth' });
-       }
-    } else {
-       // Allow default behavior for navigation (e.g. going to #my-bookings or back to home)
-       setIsOpen(false);
+    e.preventDefault();
+    setIsOpen(false);
+    const element = document.querySelector(href);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -33,31 +30,39 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-2">
-            <a href="/" className="flex items-center space-x-2">
-                <Trophy className="h-8 w-8 text-turf-green" />
-                <span className="text-xl font-bold text-white tracking-wider">TURF<span className="text-turf-green">PRO</span></span>
-            </a>
+            <Trophy className="h-8 w-8 text-turf-green" />
+            <span className="text-xl font-bold text-white tracking-wider">TURF<span className="text-turf-green">PRO</span></span>
           </div>
           
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
+            <div className="flex items-baseline space-x-6">
               {navLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className="text-gray-300 hover:text-turf-green px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  className="text-gray-300 hover:text-turf-green text-sm font-medium transition-colors"
                 >
                   {link.name}
                 </a>
               ))}
-              <a 
-                href="/#book"
-                onClick={(e) => handleNavClick(e, '/#book')}
-                className="bg-turf-green text-turf-darker px-4 py-2 rounded-md text-sm font-bold hover:bg-turf-green_hover transition-colors"
-              >
-                Book Now
-              </a>
+            </div>
+            
+            <div className="flex items-center gap-3 pl-6 border-l border-slate-700">
+                <button
+                    onClick={onMyBookingsClick}
+                    className="text-sm font-medium text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-800 transition-colors"
+                >
+                    <Receipt className="w-4 h-4" />
+                    My Bookings
+                </button>
+                <a 
+                    href="#book"
+                    onClick={(e) => handleNavClick(e, '#book')}
+                    className="bg-turf-green text-turf-darker px-4 py-2 rounded-md text-sm font-bold hover:bg-turf-green_hover transition-colors shadow-[0_0_15px_rgba(132,204,22,0.3)] hover:shadow-[0_0_20px_rgba(132,204,22,0.5)]"
+                >
+                    Book Now
+                </a>
             </div>
           </div>
 
@@ -74,25 +79,37 @@ const Navbar: React.FC = () => {
 
       {/* Mobile menu */}
       {isOpen && (
-        <div className="md:hidden bg-turf-darker border-b border-slate-800">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+        <div className="md:hidden bg-turf-darker border-b border-slate-800 animate-in slide-in-from-top-5 duration-200">
+          <div className="px-4 pt-4 pb-6 space-y-2">
             {navLinks.map((link) => (
               <a
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleNavClick(e, link.href)}
-                className="text-gray-300 hover:text-turf-green block px-3 py-2 rounded-md text-base font-medium"
+                className="text-gray-300 hover:text-turf-green block px-3 py-3 rounded-md text-base font-medium hover:bg-slate-800/50"
               >
                 {link.name}
               </a>
             ))}
-            <a
-              href="/#book"
-              onClick={(e) => handleNavClick(e, '/#book')}
-              className="block w-full text-center bg-turf-green text-turf-darker px-4 py-3 mt-4 rounded-md text-base font-bold"
-            >
-              Book Now
-            </a>
+            <div className="pt-4 mt-4 border-t border-slate-800 grid grid-cols-2 gap-3">
+                <button
+                    onClick={() => {
+                        onMyBookingsClick();
+                        setIsOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-2 bg-slate-800 text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-slate-700"
+                >
+                    <Receipt className="w-4 h-4" />
+                    My Bookings
+                </button>
+                <a
+                    href="#book"
+                    onClick={(e) => handleNavClick(e, '#book')}
+                    className="flex items-center justify-center bg-turf-green text-turf-darker px-4 py-3 rounded-lg text-sm font-bold"
+                >
+                    Book Now
+                </a>
+            </div>
           </div>
         </div>
       )}
